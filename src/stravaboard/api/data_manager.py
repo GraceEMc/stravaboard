@@ -42,13 +42,53 @@ class ActivitiesManager(DataManager):
             n: Maximum number of activities to retrieve, by default 200.
         """
         header = {"Authorization": "Bearer " + access_token}
-        params = {"per_page": n, "page": 1}
-        activities = requests.get(
-            self.ACTIVITIES_URL, headers=header, params=params
-        ).json()
-        activities = pd.json_normalize(activities)
+        per_page = min(n, 200)  # Strava max per_page is typically 200
+        page = 1
+        activities_list = []
+        # activities = requests.get(
+        #     self.ACTIVITIES_URL, headers=header, params=params
+        # ).json()
+        # activities = pd.json_normalize(activities)
 
-        self.data = activities
+        # self.data = activities
+        activities_list = []
+        try:
+            while len(activities_list) < n:
+                params = {"per_page": per_page, "page": page}
+                resp = requests.get(self.ACTIVITIES_URL, headers=header, params=params)
+                if resp.status_code != 200:
+                    # store response for debugging and stop
+                    try:
+                        err = resp.json()
+                    except Exception:
+                        err = resp.text
+                    print(f"⚠️ Strava API error: status={resp.status_code} body={err}")
+                    break
+
+                payload = resp.json()
+                # If Strava returns an error object instead of a list
+                if isinstance(payload, dict) and ("message" in payload or "errors" in payload):
+                    print(f"⚠️ Strava API returned error object: {payload}")
+                    break
+
+                if not payload:
+                    # no more activities
+                    break
+
+                activities_list.extend(payload)
+                # stop if fewer results than per_page (end of pages)
+                if len(payload) < per_page:
+                    break
+                page += 1
+
+            # Normalize results into a DataFrame (empty list -> empty DataFrame)
+            activities = pd.json_normalize(activities_list) if activities_list else pd.DataFrame()
+            self.data = activities
+
+        except requests.RequestException as e:
+            print(f"⚠️ Network error while fetching activities: {e}")
+            self.data = pd.DataFrame()
+
 
     def tidy_data(self) -> None:
         """
