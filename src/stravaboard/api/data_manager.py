@@ -72,6 +72,7 @@ class ActivitiesManager(DataManager):
         else:
             print("⚠️ Missing 'elapsed_time' column.")
             activities["elapsed_min"] = None
+        
     
         if "distance" in activities.columns:
             activities["distance_km"] = (activities["distance"] / 1000).round(2)
@@ -79,13 +80,13 @@ class ActivitiesManager(DataManager):
             print("⚠️ Missing 'distance' column.")
             activities["distance_km"] = None
     
-        # Compute pace only if both elapsed_min and distance_km exist and valid
+
         if {"elapsed_min", "distance_km"}.issubset(activities.columns):
             activities["speed_mins_per_km"] = (
                 activities["elapsed_min"] / activities["distance_km"]
-            ).replace([float("inf"), -float("inf")], None).round(2)
+            ).replace([np.inf, -np.inf], np.nan).round(2)
         else:
-            activities["speed_mins_per_km"] = None
+            activities["speed_mins_per_km"] = np.nan
     
         # Parse and format dates
         if "start_date_local" in activities.columns:
